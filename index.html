@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>نظام محاسبي تفاعلي — الدليل المحاسبي</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Google Fonts: Tajawal -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Tajawal', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            accent: '#d97706',
+                            primary: '#475569'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #f8fafc; color: #0f172a; }
+        .nav-item.active { border-bottom: 3px solid #d97706; color: #d97706; font-weight:700; }
+        .chart-container { position:relative; width:100%; max-width:700px; height:320px; margin:0 auto; }
+        table td, table th { text-align: right; }
+        .rtl-input { direction: rtl; text-align: right; }
+    </style>
+</head>
+<body class="font-sans antialiased">
+
+<header class="bg-white shadow sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <div class="text-2xl">📊</div>
+      <div>
+        <h1 class="text-lg font-bold">النظام المحاسبي التفاعلي</h1>
+        <div class="text-xs text-gray-500">نسخة تعليمية - تعمل محلياً</div>
+      </div>
+    </div>
+
+    <nav class="flex gap-4">
+      <button id="nav-dashboard" class="nav-item active px-3 py-2 text-sm" onclick="switchTab('dashboard')">لوحة القيادة</button>
+      <button id="nav-journal" class="nav-item px-3 py-2 text-sm" onclick="switchTab('journal')">اليومية وقيود</button>
+      <button id="nav-ledger" class="nav-item px-3 py-2 text-sm" onclick="switchTab('ledger')">دفتـر الأستاذ</button>
+      <button id="nav-reports" class="nav-item px-3 py-2 text-sm" onclick="switchTab('reports')">التقارير</button>
+      <button id="nav-settings" class="nav-item px-3 py-2 text-sm" onclick="switchTab('settings')">الإعدادات</button>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto p-6 space-y-6">
+
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="tab-content">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="col-span-2 bg-white p-6 rounded shadow">
+        <h2 class="text-xl font-bold mb-4">لوحة نظرة عامة</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div class="p-3 bg-blue-50 rounded">
+            <div class="text-sm text-gray-500">الأصول الجارية</div>
+            <div id="sum-assets" class="text-lg font-bold">0</div>
+          </div>
+          <div class="p-3 bg-red-50 rounded">
+            <div class="text-sm text-gray-500">الخصوم</div>
+            <div id="sum-liab" class="text-lg font-bold">0</div>
+          </div>
+          <div class="p-3 bg-green-50 rounded">
+            <div class="text-sm text-gray-500">حقوق الملكية</div>
+            <div id="sum-equity" class="text-lg font-bold">0</div>
+          </div>
+        </div>
+
+        <div class="chart-container mb-4">
+          <canvas id="dashboardChart"></canvas>
+        </div>
+
+        <div class="flex gap-2">
+          <button class="px-3 py-2 bg-brand-accent text-white rounded" onclick="openNewJournalModal()">قيد جديد</button>
+          <button class="px-3 py-2 border rounded" onclick="exportData()">تصدير بيانات (JSON)</button>
+          <button class="px-3 py-2 border rounded" onclick="importDataPrompt()">استيراد بيانات</button>
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded shadow">
+        <h3 class="text-lg font-bold mb-3">الحسابات الشائعة</h3>
+        <div id="accounts-list" class="space-y-2 text-sm text-gray-700"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JOURNAL -->
+  <section id="tab-journal" class="tab-content hidden">
+    <div class="bg-white p-6 rounded shadow mb-4">
+      <div class="flex justify-between items-center">
+        <h2 class="text-xl font-bold">دفتر اليومية — تسجيل القيود</h2>
+        <div class="text-sm text-gray-500">تأكد أن مجموع المدين = مجموع الدائن قبل الحفظ</div>
+      </div>
+
+      <form id="journal-form" class="mt-4 space-y-4" onsubmit="saveJournal(event)">
+        <div class="flex gap-3">
+          <input id="journal-date" type="date" class="border rounded px-3 py-2 rtl-input" required />
+          <input id="journal-ref" type="text" placeholder="مرجع/رقم القيد (اختياري)" class="border rounded px-3 py-2 rtl-input flex-1" />
+        </div>
+
+        <div id="journal-rows-container" class="space-y-2">
+          <!-- rows injected -->
+        </div>
+
+        <div class="flex gap-2">
+          <button type="button" onclick="addJournalRow()" class="px-3 py-2 border rounded">سطر جديد</button>
+          <button type="button" onclick="autoFillSample()" class="px-3 py-2 border rounded">إدخال تجريبي</button>
+          <div class="flex-1 text-sm text-gray-600 text-left">
+            <span id="journal-total-status">المدين: 0 — الدائن: 0</span>
+          </div>
+          <button type="submit" class="px-4 py-2 bg-green-500 text-white rounded">حفظ القيد</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="bg-white p-6 rounded shadow">
+      <h3 class="font-bold mb-3">قائمة القيود الأخيرة</h3>
+      <div id="journals-list" class="text-sm text-gray-700"></div>
+    </div>
+  </section>
+
+  <!-- LEDGER -->
+  <section id="tab-ledger" class="tab-content hidden">
+    <div class="bg-white p-6 rounded shadow mb-4">
+      <h2 class="text-xl font-bold mb-2">دفتـر الأستاذ (تفصيلي)</h2>
+      <div class="flex gap-3 mb-4">
+        <select id="ledger-account-select" class="border rounded px-3 py-2" onchange="renderLedger()"></select>
+        <button class="px-3 py-2 border rounded" onclick="renderLedger()">عرض</button>
+      </div>
+
+      <div id="ledger-entries" class="text-sm text-gray-700"></div>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="tab-reports" class="tab-content hidden">
+    <div class="bg-white p-6 rounded shadow mb-4">
+      <h2 class="text-xl font-bold mb-3">التقارير المالية</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <button class="p-3 border rounded" onclick="renderTrialBalance()">ميزان المراجعة</button>
+        <button class="p-3 border rounded" onclick="renderIncomeStatement()">قائمة الدخل</button>
+        <button class="p-3 border rounded" onclick="renderBalanceSheet()">قائمة المركز المالي</button>
+      </div>
+    </div>
+
+    <div id="reports-output" class="bg-white p-6 rounded shadow text-sm text-gray-700"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="tab-content hidden">
+    <div class="bg-white p-6 rounded shadow">
+      <h2 class="text-xl font-bold mb-3">الإعدادات والنسخ الاحتياطية</h2>
+
+      <div class="mb-4">
+        <h4 class="font-bold mb-2">شجرة الحسابات</h4>
+        <div id="accounts-admin" class="text-sm text-gray-700"></div>
+        <div class="mt-3 flex gap-2">
+          <input id="new-acc-name" class="border rounded px-2 py-1 rtl-input" placeholder="اسم حساب جديد (عربي)" />
+          <select id="new-acc-type" class="border rounded px-2 py-1">
+            <option value="asset">أصل</option>
+            <option value="liability">التزام</option>
+            <option value="equity">حقوق ملكية</option>
+            <option value="revenue">إيراد</option>
+            <option value="expense">مصروف</option>
+          </select>
+          <button class="px-3 py-1 bg-blue-500 text-white rounded" onclick="createAccountFromUI()">إضافة حساب</button>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <h4 class="font-bold mb-2">المخزون</h4>
+        <div class="flex gap-2">
+          <input id="inv-item-name" placeholder="بضاعة جديدة" class="border rounded px-2 py-1 rtl-input" />
+          <input id="inv-qty" type="number" placeholder="الكمية" class="border rounded px-2 py-1" />
+          <input id="inv-cost" type="number" placeholder="تكلفة الوحدة" class="border rounded px-2 py-1" />
+          <button class="px-3 py-1 bg-indigo-500 text-white rounded" onclick="addInventoryLayer()">إضافة مخزون</button>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <h4 class="font-bold mb-2">البيانات</h4>
+        <div class="flex gap-2">
+          <button class="px-3 py-1 border rounded" onclick="exportData()">تصدير (JSON)</button>
+          <button class="px-3 py-1 border rounded" onclick="clearAll()">مسح جميع البيانات (محلي)</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- Modals and templates -->
+<div id="modal-root"></div>
+
+<!-- App logic -->
+<script src="app.js"></script>
+</body>
+        </html>
